@@ -1,0 +1,41 @@
+trigger:
+  - main
+
+pool :
+ vmImage : ubuntu-latest
+
+variables:
+  - group: acr_credentials
+  - group : frontend_env_var
+
+stages:
+- stage: CI
+  displayName: CI
+  jobs:
+  - job: CI
+    displayName: CI
+    steps:
+    - task: Npm@1
+      displayName: Install Dependencies
+      inputs:
+        command: 'install'
+
+    - task: Npm@1
+      displayName: Build Application
+      inputs:
+        command: 'custom'
+        customCommand: 'run build'
+
+    - script: |
+        docker build -t $(acr_username).azurecr.io/simplenote-frontend:$(Build.BuildNumber) . --build-arg VITE_SERVER_URL=$(VITE_SERVER_URL)
+        az acr login --name $(acr_username) --username $(acr_username) --password $(acr_password)
+        docker push $(acr_username).azurecr.io/simplenote-frontend:$(Build.BuildNumber)
+      displayName: Build & Push Docker image
+
+    - task: AzureWebAppContainer@1
+      displayName: 'Deploy Application on Azure App service'
+      inputs:
+        azureSubscription: '******'
+        appName: '******'
+        containers: '$(acr_username).azurecr.io/simplenote-frontend:$(Build.BuildNumber)'
+        appSettings: '-DOCKER_REGISTRY_SERVER_PASSWORD $(acr_password) -DOCKER_REGISTRY_SERVER_USERNAME $(acr_username)'

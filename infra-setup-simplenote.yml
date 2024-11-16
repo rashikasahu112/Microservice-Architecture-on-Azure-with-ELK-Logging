@@ -1,0 +1,22 @@
+trigger: none
+# - main
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+- task: AzureResourceManagerTemplateDeployment@3
+  displayName: Infrastructure Deployment
+  inputs:
+    deploymentScope: 'Resource Group'
+    azureResourceManagerConnection: '*****'
+    subscriptionId: '******'
+    action: 'Create Or Update Resource Group'
+    resourceGroupName: '******'
+    location: 'Central India'
+    templateLocation: 'Linked artifact'
+    csmFile: 'bicep/main.bicep'
+    overrideParameters: |
+      -env dev 
+      -elkVMAdminPassword "$(elkVMAdminPassword)"
+    deploymentMode: 'Incremental'

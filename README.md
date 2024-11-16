@@ -1,0 +1,1 @@
+This repository consist of the Bicep templates, CI/CD pipelines for frontend, backend microservices and bicep infra deployment, Dockerfile used in objective architecture.

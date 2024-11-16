@@ -1,0 +1,76 @@
+trigger:
+  paths:
+    include: [ NotesFunction ]     # Path based trigger
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  - group: backend_env_var
+
+stages:
+- stage: Build
+  displayName: Build
+  jobs:  
+  - job: Build
+    displayName: Build
+    steps:
+    - task: NodeTool@0
+      displayName: 'Install Node'
+      inputs:
+        versionSpec: '20.x'
+    
+    - script: |
+        cd NotesFunction
+        npm install
+        npm run build
+      displayName: 'Build App'    
+    
+    - task: DownloadSecureFile@1                        # ELK ssl/tls security certificate (required by the backend service to build connection with ELK)
+      displayName: 'Download ElasticSearch certificate'    
+      inputs:
+        secureFile: 'ca.crt'
+    
+    - task: CopyFiles@2
+      inputs:
+        SourceFolder: '$(Agent.TempDirectory)'
+        Contents: 'ca.crt'
+        TargetFolder: '$(System.DefaultWorkingDirectory)/NotesFunction'  
+
+
+    - task: ArchiveFiles@2
+      displayName: "Archive files"
+      inputs:
+        rootFolderOrFile: "$(System.DefaultWorkingDirectory)/NotesFunction"
+        includeRootFolder: false
+        archiveFile: "$(System.DefaultWorkingDirectory)/NotesFunction/notesFunc-app.zip"
+
+    - task: PublishBuildArtifacts@1
+      inputs:
+        PathtoPublish: '$(System.DefaultWorkingDirectory)/NotesFunction/notesFunc-app.zip'
+        ArtifactName: 'artifact'
+        publishLocation: 'Container'
+
+
+- stage: Deploy
+  displayName: Deploy
+  jobs:  
+  - job: Deploy
+    displayName: Deploy
+    steps:
+    - task: DownloadBuildArtifacts@0
+      displayName: 'Download Build Artifact'
+      inputs:
+        buildType: 'current'
+        artifactName: 'artifact'
+        downloadPath: '$(System.DefaultWorkingDirectory)'
+
+    - task: AzureFunctionApp@1
+      displayName: Deploy to Azure Function
+      inputs:
+        azureSubscription: '**********'
+        appType: 'functionAppLinux'
+        appName: '******'
+        package: '$(System.DefaultWorkingDirectory)/artifact/notesFunc-app.zip'
+        runtimeStack: 'NODE|20'
+        appSettings: '-HMAC_PRIVATE_KEY $(HMAC_PRIVATE_KEY) -DB_URL $(DB_URL) -USER_DUMMY_TOKEN $(USER_DUMMY_TOKEN) -ELASTICSEARCH_URL $(ELASTICSEARCH_URL) -ELASTICSEARCH_USERNAME $(ELASTICSEARCH_USERNAME) -ELASTICSEARCH_PASSWORD $(ELASTICSEARCH_PASSWORD) -CA_FINGERPRINT $(CA_FINGERPRINT)'
